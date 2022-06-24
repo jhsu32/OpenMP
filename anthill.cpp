@@ -310,7 +310,8 @@ int main(int argc, char **argv) {
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Example Approach #1: Brute force approach
   // double res = 1000000000;
-#pragma omp declare reduction (maximum:pair<double, pair<int, int>>: omp_out = omp_out.first > omp_in.first ? omp_out : omp_in)
+#pragma omp declare reduction (maximum:pair<double, pair<int, int>>: omp_out = omp_out.first > omp_in.first ? omp_out : omp_in) initializer (omp_priv=make_pair(-1, mak
+e_pair(-1, -1)))
   pair<double, pair<int, int>> res = make_pair(-1, make_pair(-1, -1));
   start_time = omp_get_wtime();
   volatile int found = 0;
@@ -331,8 +332,7 @@ int main(int argc, char **argv) {
       }
     }
   }
-
-  printf("%d, %d", res.second.first, res.second.second);
+  printf("%d, %d\n", res.second.first, res.second.second);
   /*
               if(i == 0){
                   if(j == 0){
