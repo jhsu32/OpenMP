@@ -275,94 +275,56 @@ int main(int argc, char **argv) {
 
   MyLawn.initialize_Lawn(size, anthill_x, anthill_y, steps);
 
-  MyLawn.save_Lawn_to_file(); // Not recommended when size is large
-                              /*
-                               int n = MyLawn.m;
-                               int m = MyLawn.m;
-                               int lo = 0;
-                               int hi = m-1;
-                               int mid;
-                               while(lo <= hi){
-                                   mid = lo +( hi - lo) / 2;
-                                   int max_row = 0;
-                                   for(int i = 0; i < n; i++){
-                                       if(MyLawn.number_of_ants_in_cell(max_row, mid) <
-                               MyLawn.number_of_ants_in_cell(i, mid)) max_row = i;
-                                   }
-                            
-                                   if((mid == 0 || MyLawn.number_of_ants_in_cell(max_row, mid)) >
-                               MyLawn.number_of_ants_in_cell(max_row, mid-1) && (mid == m-1 ||
-                               MyLawn.number_of_ants_in_cell(max_row, mid) >
-                               MyLawn.number_of_ants_in_cell(max_row, mid-1))){
-                                       if(MyLawn.guess_anthill_location(max_row, mid) == 1){
-                                           execution_time = omp_get_wtime() - start_time;
-                            
-                                           MyLawn.report_results(execution_time);
-                               // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                                           return 0;
-                                       }
-                                   }else if(mid > 0 && MyLawn.number_of_ants_in_cell(max_row, mid-1) >
-                               MyLawn.number_of_ants_in_cell(max_row, mid)) hi = mid-1;                             else{                             lo = mid+1;
-                                   }
-                               }
-                           */
+  MyLawn.save_Lawn_to_file();
 
-  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Example Approach #1: Brute force approach
-  // double res = 1000000000;
-#pragma omp declare reduction (maximum:pair<double, pair<int, int>>: omp_out = omp_out.first > omp_in.first ? omp_out : omp_in) initializer (omp_priv=make_pair(-1, mak
-e_pair(-1, -1)))
-  pair<double, pair<int, int>> res = make_pair(-1, make_pair(-1, -1));
-  start_time = omp_get_wtime();
-  volatile int found = 0;
-#pragma omp parallel for default(none) shared(MyLawn, found) reduction(maximum    \
-                                                                        : res)
-  for (int i = 0; i < MyLawn.m; i++) {
-    for (int j = 0; j < MyLawn.m; j++) {
-      double current = MyLawn.number_of_ants_in_cell(i, j);
-      if ((!exist(i - 1, j, MyLawn) ||
-           current > MyLawn.number_of_ants_in_cell(i - 1, j)) &&
-          (!exist(i, j - 1, MyLawn) ||
-           current > MyLawn.number_of_ants_in_cell(i, j - 1)) &&
-          (!exist(i + 1, j, MyLawn) ||
-           current > MyLawn.number_of_ants_in_cell(i + 1, j)) &&
-          (!exist(i, j + 1, MyLawn) ||
-           current > MyLawn.number_of_ants_in_cell(i, j + 1))) {
-        res = max(res, make_pair(current, make_pair(i, j)));
+  typedef struct {
+    double val;
+    int loc1;
+    int loc2;
+    char pad[128];
+  } tvals;
+  tvals maxinfo[18];
+  int loc1;
+  int loc2;
+  int i, j;
+#pragma omp parallel shared(maxinfo)
+  {
+    int id = omp_get_thread_num();
+    // printf("id: %d", id);
+    maxinfo[id].val = -1.0e30;
+#pragma omp for collapse(2)
+    for (i = 0; i < MyLawn.m; i++) {
+      // #pragma omp parallel for
+      for (j = 0; j < MyLawn.m; j++) {
+        double val = MyLawn.number_of_ants_in_cell(i, j);
+        // #pragma omp critical
+        if (val > maxinfo[id].val) {
+          maxinfo[id].val = val;
+          maxinfo[id].loc1 = i;
+          maxinfo[id].loc2 = j;
+        }
       }
     }
   }
-  printf("%d, %d\n", res.second.first, res.second.second);
-  /*
-              if(i == 0){
-                  if(j == 0){
-                      if(current > MyLawn.number_of_ants_in_cell(1,0) && current
-  > MyLawn.number_of_ants_in_cell(0, 1)){} }else if(j == MyLawn.m-1){ if(current
-  > MyLawn.number_of_ants_in_cell(1,j) && current >
-  MyLawn.number_of_ants_in_cell(0, j-1)){} }else{ if(current >
-  MyLawn.number_of_ants_in_cell(0,j-1) && current >
-  MyLawn.number_of_ants_in_cell(0, j+1) && current >
-  MyLawn.number_of_ants_in_cell(1, j))
-                  }
-              }
-                  else if(i == 0 && j == MyLawn.m-1){
-                  if(current > MyLawn.number_of_ants_in_cell(1,j) && current >
-  MyLawn.number_of_ants_in_cell(0, j-1)) }else if(i == MyLawn.m-1 && j == 0){
-                  if(current > MyLawn.number_of_ants_in_cell(i-1,0) && current >
-  MyLawn.number_of_ants_in_cell(i,j+1)) }else if(i == MyLawn.m-1 && j ==
-  MyLawn.m-1){ if(current > MyLawn.number_of_ants_in_cell(i-1,j) && current >
-  MyLawn.number_of_ants_in_cell(i, j-1)) }else{
 
-              }
-              if(MyLawn.number_of_ants_in_cell(i, j) :
-              if (found == 0) {
-                  if (MyLawn.guess_anthill_location(i,j) == 1) {
-                      found = 1;
-  #pragma omp flush(found)
-                  }
-              }
-          }
-    }*/
+  int max_val;
+#pragma omp flush(maxinfo)
+#pragma omp master
+  {
+    loc1 = maxinfo[0].loc1;
+    loc2 = maxinfo[0].loc2;
+    max_val = maxinfo[0].val;
+    for (int i = 1; i < 8; ++i) {
+      if (maxinfo[i].val > max_val) {
+        max_val = maxinfo[i].val;
+        loc1 = maxinfo[i].loc1;
+        loc2 = maxinfo[i].loc2;
+      }
+    }
+  }
+
+  printf("%d, %d \n", loc1, loc2);
+
   // #pragma parallel for ends here ...
   execution_time = omp_get_wtime() - start_time;
 
